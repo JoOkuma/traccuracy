@@ -25,7 +25,7 @@ def load_tiffs(data_dir, delayed = True):
         np.array: 4D array with dims TYXC
     """
     if delayed:
-        mov = dask_imread(f"{data_dir}/*.tif*")
+        mov = dask_imread(f"{data_dir}/*.tif*", imread=imread)
     
     else:
         files = np.sort(glob.glob(f"{data_dir}/*.tif*"))
