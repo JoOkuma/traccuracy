@@ -4,15 +4,15 @@ import os
 import networkx as nx
 import numpy as np
 import pandas as pd
+from dask.array.image import imread as dask_imread
 from skimage.measure import regionprops_table
 from tifffile import imread
 from tqdm import tqdm
-from dask.array.image import imread as dask_imread
 
 from traccuracy._tracking_graph import TrackingGraph
 
 
-def load_tiffs(data_dir, delayed = True):
+def load_tiffs(data_dir, delayed=True):
     """Load a directory of individual frames into a stack.
 
     Args:
@@ -26,7 +26,7 @@ def load_tiffs(data_dir, delayed = True):
     """
     if delayed:
         mov = dask_imread(f"{data_dir}/*.tif*", imread=imread)
-    
+
     else:
         files = np.sort(glob.glob(f"{data_dir}/*.tif*"))
         if len(files) == 0:
@@ -69,7 +69,10 @@ def get_node_attributes(masks):
             segmentation_id, x, y, z, t
     """
     data_df = pd.concat(
-        [_detections_from_image(masks, idx) for idx in range(masks.shape[0])]
+        [
+            _detections_from_image(masks, idx)
+            for idx in tqdm(range(masks.shape[0]), "Extracting centroids")
+        ]
     ).reset_index(drop=True)
     data_df = data_df.rename(
         columns={
