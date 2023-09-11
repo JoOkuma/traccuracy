@@ -57,8 +57,8 @@ class CTCMatched(Matched):
                 desc="Matching frames",
             )
         ):
-            gt_frame = mask_gt[i]
-            pred_frame = mask_pred[i]
+            gt_frame = np.asarray(mask_gt[i])
+            pred_frame = np.asarray(mask_pred[i])
             gt_frame_nodes = gt.nodes_by_frame[t]
             pred_frame_nodes = pred.nodes_by_frame[t]
 

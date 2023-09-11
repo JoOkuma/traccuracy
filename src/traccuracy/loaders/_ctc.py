@@ -7,11 +7,12 @@ import pandas as pd
 from skimage.measure import regionprops_table
 from tifffile import imread
 from tqdm import tqdm
+from dask.array.image import imread as dask_imread
 
 from traccuracy._tracking_graph import TrackingGraph
 
 
-def load_tiffs(data_dir):
+def load_tiffs(data_dir, delayed = True):
     """Load a directory of individual frames into a stack.
 
     Args:
@@ -23,15 +24,20 @@ def load_tiffs(data_dir):
     Returns:
         np.array: 4D array with dims TYXC
     """
-    files = np.sort(glob.glob(f"{data_dir}/*.tif*"))
-    if len(files) == 0:
-        raise FileNotFoundError(f"No tif files were found in {data_dir}")
+    if delayed:
+        mov = dask_imread(f"{data_dir}/*.tif*")
+    
+    else:
+        files = np.sort(glob.glob(f"{data_dir}/*.tif*"))
+        if len(files) == 0:
+            raise FileNotFoundError(f"No tif files were found in {data_dir}")
 
-    ims = []
-    for f in tqdm(files, "Loading TIFFs"):
-        ims.append(imread(f))
+        ims = []
+        for f in tqdm(files, "Loading TIFFs"):
+            ims.append(imread(f))
 
-    mov = np.stack(ims)
+        mov = np.stack(ims)
+
     return mov
 
 

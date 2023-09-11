@@ -22,6 +22,9 @@ def _match_nodes(gt, res, threshold=1):
         gtcells (np arr): Array of overlapping ids in the gt frame.
         rescells (np arr): Array of overlapping ids in the res frame.
     """
+    gt = np.asarray(gt)
+    res = np.asarray(res)
+
     iou = np.zeros((np.max(gt) + 1, np.max(res) + 1))
 
     overlapping_gt_labels, overlapping_res_labels, _ = get_labels_with_overlap(gt, res)

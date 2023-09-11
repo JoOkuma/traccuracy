@@ -29,6 +29,7 @@ classifiers = [
 ]
 dynamic = ["version"]
 dependencies = [
+    "dask",
     "numpy",
     "networkx",
     "pandas",
