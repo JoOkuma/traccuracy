@@ -5,11 +5,49 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 from dask.array.image import imread as dask_imread
-from skimage.measure import regionprops_table
 from tifffile import imread
 from tqdm import tqdm
 
 from traccuracy._tracking_graph import TrackingGraph
+
+try:
+    import cupy as xp
+    from cucim.skimage.measure import regionprops_table
+
+    print("Using cupy/cucim")
+
+except (ImportError, ModuleNotFoundError):
+    import numpy as xp
+    from skimage.measure import regionprops_table
+
+    print("cupy/cucim not found. Using numpy/skimage")
+
+
+def _regionprops_table(labels, **kwargs) -> pd.DataFrame:
+    """
+    Wrapper for skimage.measure.regionprops_table that returns a pandas DataFrame.
+    It executes the regionprops_table function on the GPU if cupy & cucim are installed.
+
+    Args:
+        labels (np.ndarray): Array of labels
+        **kwargs: Additional keyword arguments to pass to regionprops_table
+
+    Returns:
+        pd.DataFrame: DataFrame of region properties
+    """
+    try:
+        labels = xp.asarray(labels)
+        props = regionprops_table(labels, **kwargs)
+        # Convert to numpy if cupy
+        if hasattr(xp, "asnumpy"):
+            props = {k: xp.asnumpy(v) for k, v in props.items()}
+
+    except MemoryError:
+        print("MemoryError: Falling back to CPU")
+        labels = np.asarray(labels)
+        props = regionprops_table(labels, **kwargs)
+
+    return pd.DataFrame(props)
 
 
 def load_tiffs(data_dir, delayed=True):
@@ -51,11 +89,11 @@ def _detections_from_image(stack, idx):
     Returns:
         pd.DataFrame: The dataframe of track data for one time step (specified by idx)
     """
-    props = regionprops_table(
+    props = _regionprops_table(
         np.asarray(stack[idx, ...]), properties=("label", "centroid")
     )
-    props["t"] = np.full(props["label"].shape, idx)
-    return pd.DataFrame(props)
+    props["t"] = idx
+    return props
 
 
 def get_node_attributes(masks):
