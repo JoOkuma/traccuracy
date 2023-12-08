@@ -1,3 +1,5 @@
+from collections import Counter
+
 import networkx as nx
 import pytest
 from traccuracy import EdgeAttr, NodeAttr, TrackingGraph
@@ -66,6 +68,40 @@ def nx_comp2():
 
 
 @pytest.fixture
+def nx_merge():
+    """
+    3_0--3_1--\\
+              3_2--3_3
+    3_4--3_5--/
+    """
+    cells = [
+        {"id": "3_0", "t": 0, "x": 0, "y": 0},
+        {"id": "3_1", "t": 1, "x": 0, "y": 0},
+        {"id": "3_2", "t": 2, "x": 0, "y": 0},
+        {"id": "3_3", "t": 3, "x": 0, "y": 0},
+        {"id": "3_4", "t": 0, "x": 0, "y": 0},
+        {"id": "3_5", "t": 1, "x": 0, "y": 0},
+    ]
+
+    edges = [
+        {"source": "3_0", "target": "3_1"},
+        {"source": "3_1", "target": "3_2"},
+        {"source": "3_2", "target": "3_3"},
+        {"source": "3_4", "target": "3_5"},
+        {"source": "3_5", "target": "3_2"},
+    ]
+    graph = nx.DiGraph()
+    graph.add_nodes_from([(cell["id"], cell) for cell in cells])
+    graph.add_edges_from([(edge["source"], edge["target"]) for edge in edges])
+    return graph
+
+
+@pytest.fixture
+def merge_graph(nx_merge):
+    return TrackingGraph(nx_merge)
+
+
+@pytest.fixture
 def simple_graph(nx_comp1):
     return TrackingGraph(nx_comp1)
 
@@ -80,10 +116,10 @@ def test_constructor(nx_comp1):
     assert tracking_graph.start_frame == 0
     assert tracking_graph.end_frame == 4
     assert tracking_graph.nodes_by_frame == {
-        0: ["1_0"],
-        1: ["1_1"],
-        2: ["1_2", "1_3"],
-        3: ["1_4"],
+        0: {"1_0"},
+        1: {"1_1"},
+        2: {"1_2", "1_3"},
+        3: {"1_4"},
     }
 
     # raise AssertionError if frame key not present or ValueError if overlaps
@@ -100,14 +136,18 @@ def test_constructor(nx_comp1):
 
 def test_get_cells_by_frame(simple_graph):
     assert simple_graph.get_nodes_in_frame(0) == ["1_0"]
-    assert simple_graph.get_nodes_in_frame(2) == ["1_2", "1_3"]
+    assert Counter(simple_graph.get_nodes_in_frame(2)) == Counter(["1_2", "1_3"])
     assert simple_graph.get_nodes_in_frame(5) == []
 
 
 def test_get_nodes_by_roi(simple_graph):
     assert simple_graph.get_nodes_by_roi(t=(0, 1)) == ["1_0"]
-    assert simple_graph.get_nodes_by_roi(x=(1, None)) == ["1_0", "1_1", "1_3", "1_4"]
-    assert simple_graph.get_nodes_by_roi(x=(None, 2), t=(1, None)) == ["1_1", "1_2"]
+    assert Counter(simple_graph.get_nodes_by_roi(x=(1, None))) == Counter(
+        ["1_0", "1_1", "1_3", "1_4"]
+    )
+    assert Counter(simple_graph.get_nodes_by_roi(x=(None, 2), t=(1, None))) == Counter(
+        ["1_1", "1_2"]
+    )
 
 
 def test_get_location(nx_comp1):
@@ -168,15 +208,24 @@ def test_get_divisions(complex_graph):
     assert complex_graph.get_divisions() == ["1_1", "2_2"]
 
 
-def test_get_preds(simple_graph):
+def test_get_merges(merge_graph):
+    assert merge_graph.get_merges() == ["3_2"]
+
+
+def test_get_preds(simple_graph, merge_graph):
+    # Division graph
     assert simple_graph.get_preds("1_0") == []
     assert simple_graph.get_preds("1_1") == ["1_0"]
     assert simple_graph.get_preds("1_2") == ["1_1"]
 
+    # Merge graph
+    assert merge_graph.get_preds("3_3") == ["3_2"]
+    assert merge_graph.get_preds("3_2") == ["3_1", "3_5"]
+
 
 def test_get_succs(simple_graph):
     assert simple_graph.get_succs("1_0") == ["1_1"]
-    assert simple_graph.get_succs("1_1") == ["1_2", "1_3"]
+    assert Counter(simple_graph.get_succs("1_1")) == Counter(["1_2", "1_3"])
     assert simple_graph.get_succs("1_2") == []
 
 
@@ -225,3 +274,19 @@ def test_get_and_set_edge_attributes(simple_graph):
     assert simple_graph.edges()[("1_1", "1_3")][EdgeAttr.TRUE_POS] is False
     with pytest.raises(ValueError):
         simple_graph.set_edge_attribute(("1_1", "1_3"), "x", 2)
+
+
+def test_get_tracklets(simple_graph):
+    tracklets = simple_graph.get_tracklets()
+    for tracklet in tracklets:
+        start_nodes = [n for n, d in tracklet.graph.in_degree() if d == 0]
+        assert len(start_nodes) == 1
+        end_nodes = [n for n, d in tracklet.graph.out_degree() if d == 0]
+        assert len(end_nodes)
+
+        if start_nodes[0] == "1_0":
+            assert end_nodes[0] == "1_1"
+        elif start_nodes[0] == "1_2":
+            assert end_nodes[0] == "1_2"
+        elif start_nodes[0] == "1_3":
+            assert end_nodes[0] == "1_4"

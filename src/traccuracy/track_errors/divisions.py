@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import copy
 import itertools
 import logging
@@ -8,12 +10,12 @@ from traccuracy._tracking_graph import NodeAttr
 from traccuracy._utils import find_gt_node_matches, find_pred_node_matches
 
 if TYPE_CHECKING:
-    from traccuracy.matchers._matched import Matched
+    from traccuracy.matchers import Matched
 
 logger = logging.getLogger(__name__)
 
 
-def _classify_divisions(matched_data: "Matched"):
+def _classify_divisions(matched_data: Matched):
     """Identify each division as a true positive, false positive or false negative
 
     This function only works on node mappers that are one-to-one
@@ -32,7 +34,7 @@ def _classify_divisions(matched_data: "Matched"):
     mapper = matched_data.mapping
 
     if g_gt.division_annotations and g_pred.division_annotations:
-        logger.info("Divison annotations already present. Skipping graph annotation.")
+        logger.info("Division annotations already present. Skipping graph annotation.")
         return
 
     # Check that mapper is one to one
@@ -61,7 +63,7 @@ def _classify_divisions(matched_data: "Matched"):
         # No matching node so division missed
         if pred_node is None:
             g_gt.set_node_attribute(gt_node, NodeAttr.FN_DIV, True)
-        # Check if the division has the corret daughters
+        # Check if the division has the correct daughters
         else:
             succ_gt = g_gt.get_succs(gt_node)
             # Map pred succ nodes onto gt, unmapped nodes will return as None
@@ -139,7 +141,7 @@ def _get_succ_by_t(g, node, delta_frames):
     return node
 
 
-def _correct_shifted_divisions(matched_data: "Matched", n_frames=1):
+def _correct_shifted_divisions(matched_data: Matched, n_frames=1):
     """Allows for divisions to occur within a frame buffer and still be correct
 
     This implementation asserts that the parent lineages and daughter lineages must match.
@@ -183,7 +185,7 @@ def _correct_shifted_divisions(matched_data: "Matched", n_frames=1):
 
         # False positive in pred occurs before false negative in gt
         if t_fp < t_fn:
-            # Check if fp node matches prececessor of fn
+            # Check if fp node matches predecessor of fn
             fn_pred = _get_pred_by_t(g_gt, fn_node, t_fn - t_fp)
             # Check if the match exists
             if (fn_pred, fp_node) not in mapper:
@@ -236,7 +238,7 @@ def _correct_shifted_divisions(matched_data: "Matched", n_frames=1):
     return new_matched
 
 
-def _evaluate_division_events(matched_data: "Matched", frame_buffer=(0)):
+def _evaluate_division_events(matched_data: Matched, frame_buffer=(0)):
     """Classify division errors and correct shifted divisions according to frame_buffer
 
     Note: A copy of matched_data will be created for each frame_buffer other than 0.
