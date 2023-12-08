@@ -1,6 +1,6 @@
 """This submodule classifies division errors in tracking graphs
 
-Each division is classifed as one of the following:
+Each division is classified as one of the following:
 - true positive
 - false positive
 - false negative
@@ -13,6 +13,7 @@ Temporal tolerance for correct divisions is implemented to allow for cases in
 which the exact frame that a division event occurs is somewhat arbitrary due to
 a high frame rate or variable segmentation or detection. Consider the following
 graphs as an example::
+
     G1
                                 2_4
     1_0 -- 1_1 -- 1_2 -- 1_3 -<
@@ -31,45 +32,52 @@ as the parent node of the early division. We repeat the process for finding daug
 of the early division, by advancing along the graph to find nodes in the same frame
 as the late division daughters.
 """
+from __future__ import annotations
 
+from typing import TYPE_CHECKING
 
 from traccuracy._tracking_graph import NodeAttr
 from traccuracy.track_errors.divisions import _evaluate_division_events
 
 from ._base import Metric
 
+if TYPE_CHECKING:
+    from traccuracy.matchers import Matched
+
 
 class DivisionMetrics(Metric):
+    """Classify division events and provide the following summary metrics
+
+    - Division Recall
+    - Division Precision
+    - Division F1 Score
+    - Mitotic Branching Correctness: TP / (TP + FP + FN) as defined by Ulicna, K.,
+        Vallardi, G., Charras, G. & Lowe, A. R. Automated deep lineage tree analysis
+        using a Bayesian single cell tracking approach. Frontiers in Computer Science
+        3, 734559 (2021).
+
+    Args:
+        frame_buffer (tuple(int), optional): Tuple of integers. Value used as n_frames
+            to tolerate in correct_shifted_divisions. Defaults to (0).
+    """
+
     needs_one_to_one = True
 
-    def __init__(self, matched_data, frame_buffer=(0,)):
-        """Classify division events and provide the following summary metrics
+    def __init__(self, frame_buffer=(0,)):
+        self.frame_buffer = frame_buffer
 
-        - Division Recall
-        - Division Precision
-        - Divison F1 Score
-        - Mitotic Branching Correctness: TP / (TP + FP + FN) as defined by Ulicna, K.,
-          Vallardi, G., Charras, G. & Lowe, A. R. Automated deep lineage tree analysis
-          using a Bayesian single cell tracking approach. Frontiers in Computer Science
-          3, 734559 (2021).
+    def compute(self, data: Matched):
+        """Runs `_evaluate_division_events` and calculates summary metrics for each frame buffer
 
         Args:
-            matched_data (Matched): Matched object for set of GT and Pred data
-                Must meet the `needs_one_to_one` critera
-            frame_buffer (tuple(int), optional): Tuple of integers. Value used as n_frames
-                to tolerate in correct_shifted_divisions. Defaults to (0).
-        """
-        self.frame_buffer = frame_buffer
-        super().__init__(matched_data)
-
-    def compute(self):
-        """Runs `_evalute_division_events` and calculates summary metrics for each frame buffer
+            matched_data (traccuracy.matchers.Matched): Matched object for set of GT and Pred data
+                Must meet the `needs_one_to_one` criteria
 
         Returns:
             dict: Returns a nested dictionary with one dictionary per frame buffer value
         """
         div_annotations = _evaluate_division_events(
-            self.data,
+            data,
             frame_buffer=self.frame_buffer,
         )
 

@@ -122,7 +122,6 @@ def ctc_to_graph(df, detections):
                 {
                     "source": cellids[0:-1],
                     "target": cellids[1:],
-                    "is_intertrack_edge": [0 for _ in range(len(cellids) - 1)],
                 }
             )
         )
@@ -135,11 +134,7 @@ def ctc_to_graph(df, detections):
 
         target = "{}_{}".format(row["Cell_ID"], row["Start"])
 
-        edges.append(
-            pd.DataFrame(
-                {"source": [source], "target": [target], "is_intertrack_edge": [1]}
-            )
-        )
+        edges.append(pd.DataFrame({"source": [source], "target": [target]}))
 
     # Store position attributes on nodes
     detections["node_id"] = (
@@ -158,9 +153,8 @@ def ctc_to_graph(df, detections):
 
     # Create graph
     edges = pd.concat(edges)
-    edges["is_intertrack_edge"] = edges["is_intertrack_edge"].astype(bool)
     G = nx.from_pandas_edgelist(
-        edges, source="source", target="target", create_using=nx.DiGraph, edge_attr=True
+        edges, source="source", target="target", create_using=nx.DiGraph
     )
 
     # Add all isolates to graph
@@ -178,7 +172,7 @@ def load_ctc_data(data_dir, track_path=None):
     Args:
         data_dir (str): Path to directory containing CTC tiffs.
         track_path (optional, str): Path to CTC track file. If not passed,
-        finds '*_track.txt' in data_dir.
+            finds `*_track.txt` in data_dir.
 
     Returns:
         TrackingData: Object containing segmentations and TrackingGraph.
