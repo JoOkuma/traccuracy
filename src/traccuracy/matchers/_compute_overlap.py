@@ -5,10 +5,28 @@ Written by Sergey Karayev
 Licensed under The MIT License [see LICENSE for details]
 Copyright (c) 2015 Microsoft
 """
+
+import logging
 from typing import Tuple
 
 import numpy as np
 from skimage.measure import regionprops
+
+logger = logging.getLogger(__name__)
+xp = np
+
+# cucim regionprops uses `find_objects` using cpu
+# try:
+#     import cupy as xp
+#     from cucim.skimage.measure import regionprops
+#
+#     logger.info("Using cupy/cucim")
+#
+# except (ImportError, ModuleNotFoundError):
+#     import numpy as xp
+#     from skimage.measure import regionprops
+#
+#     logger.warning("cupy/cucim not found. Using numpy/skimage")
 
 
 def _union_slice(a: Tuple[slice], b: Tuple[slice]):
@@ -31,21 +49,23 @@ def get_labels_with_overlap(gt_frame, res_frame):
         overlapping_res_labels: List[int], labels of res boxes that overlap with gt boxes
         intersections_over_gt: List[float], list of (intersection gt vs res) / (gt area)
     """
-    gt_frame = gt_frame.astype(np.uint16, copy=False)
-    res_frame = res_frame.astype(np.uint16, copy=False)
-    gt_props = regionprops(gt_frame)
+    # gt_frame = gt_frame.astype(np.uint16, copy=False)
+    # res_frame = res_frame.astype(np.uint16, copy=False)
+    gt_props = regionprops(xp.asarray(gt_frame))
     gt_boxes = [np.array(gt_prop.bbox) for gt_prop in gt_props]
     gt_boxes = np.array(gt_boxes).astype(np.float64)
     gt_box_labels = np.asarray(
         [int(gt_prop.label) for gt_prop in gt_props], dtype=np.uint16
     )
 
-    res_props = regionprops(res_frame)
+    res_props = regionprops(xp.asarray(res_frame))
     res_boxes = [np.array(res_prop.bbox) for res_prop in res_props]
     res_boxes = np.array(res_boxes).astype(np.float64)
     res_box_labels = np.asarray(
         [int(res_prop.label) for res_prop in res_props], dtype=np.uint16
     )
+    if len(gt_props) == 0 or len(res_props) == 0:
+        return [], [], []
 
     if gt_frame.ndim == 3:
         overlaps = compute_overlap_3D(gt_boxes, res_boxes)
@@ -170,7 +190,8 @@ except ImportError:
         warnings.warn(
             "Numba not installed, falling back to slower numpy implementation. "
             "Install numba for a significant speedup.  Set the environment "
-            "variable NO_JIT_WARNING=1 to disable this warning."
+            "variable NO_JIT_WARNING=1 to disable this warning.",
+            stacklevel=2,
         )
 else:
     # compute_overlap 2d and 3d have the same signature
